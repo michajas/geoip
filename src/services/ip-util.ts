@@ -317,4 +317,18 @@ export class IpUtil {
       return result ? { ...result, version: 6 } : null;
     }
   }
+
+  /**
+   * Convert an unsigned 32-bit integer to signed (for storage compatibility)
+   */
+  static toSigned32(n: number): number {
+    return n > 0x7fffffff ? n - 0x100000000 : n;
+  }
+
+  /**
+   * Convert a signed 32-bit integer to unsigned (for comparison)
+   */
+  static toUnsigned32(n: number): number {
+    return n < 0 ? n + 0x100000000 : n;
+  }
 }

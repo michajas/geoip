@@ -91,9 +91,21 @@ export class RedisClient {
     }
 
     if (this.connecting) {
-      while (this.connecting) {
+      // Wait for connection to complete with timeout
+      let attempts = 0;
+      const maxAttempts = 100; // 10 second timeout
+
+      while (this.connecting && attempts < maxAttempts) {
         await new Promise((resolve) => setTimeout(resolve, 100));
+        attempts++;
       }
+
+      if (this.connecting) {
+        throw new Error(
+          "Redis connection timeout while waiting for connect operation"
+        );
+      }
+
       return;
     }
 

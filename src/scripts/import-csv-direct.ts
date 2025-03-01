@@ -81,7 +81,6 @@ async function runImport() {
       ipv6File: args.ipv6File as string | undefined,
       dataDir: args.dataDir as string | undefined,
       clearExisting: args.clearExisting as boolean,
-      skipProblemIpv6: true,
     });
 
     // Cleanup and exit
