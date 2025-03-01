@@ -7,22 +7,22 @@ Test duration: 0h 0m 40s
 Virtual users: 50
 
 Request Metrics:
-  Total requests: 39481
+  Total requests: 39539
   Requests/sec: 1.00/sec
   
 Response Time:
-  Min: 0.42ms
-  Mean: 0.98ms
+  Min: 0.55ms
+  Mean: 1.18ms
   Median: N/Ams
-  p90: 1.53ms
-  p95: 2.33ms
+  p90: 1.69ms
+  p95: 1.99ms
   p99: N/Ams
-  Max: 47.91ms
+  Max: 17.98ms
 
 Status Codes:
-  200 OK: 986.7842739763635/sec
-  Success rate: 94.58%
-  Not found rate: 5.42%
+  200 OK: 987.7438719859559/sec
+  Success rate: 94.51%
+  Not found rate: 5.49%
 
 =================================
   
