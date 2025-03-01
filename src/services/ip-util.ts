@@ -83,70 +83,128 @@ export class IpUtil {
   }
 
   /**
-   * Convert IPv6 to normalized form (expand abbreviations)
+   * Normalize an IPv6 address to its standard form
+   * Handles special cases that might cause issues
    */
-  static normalizeIpv6(ip: string): string {
-    // Handle IPv4-mapped IPv6 addresses
-    if (ip.includes(".")) {
-      const lastColon = ip.lastIndexOf(":");
-      const ipv4Part = ip.substring(lastColon + 1);
+  public static normalizeIpv6(ip: string): string {
+    if (!ip) {
+      throw new Error("IP address cannot be empty");
+    }
 
-      if (this.isValidIpv4(ipv4Part)) {
-        const ipv4Binary = this.ipToLong(ipv4Part);
-        const ipv4Hex = ipv4Binary.toString(16).padStart(8, "0");
-        ip = `${ip.substring(0, lastColon)}:${ipv4Hex.substring(
-          0,
-          4
-        )}:${ipv4Hex.substring(4)}`;
+    // Handle special case of addresses with multiple consecutive colons that aren't ::
+    if (ip.includes(":::")) {
+      // Convert multiple colons to just two
+      ip = ip.replace(/:{3,}/g, "::");
+    }
+
+    // Split the address into its 8 groups, accounting for ::
+    const parts = ip.split(":");
+
+    // Check if we have a valid IPv6 address (should be at most 8 groups)
+    if (parts.length > 8) {
+      throw new Error(`Invalid IPv6 address: ${ip} (too many groups)`);
+    }
+
+    // Check for empty groups at the beginning or end
+    if (parts[0] === "") parts[0] = "0";
+    if (parts[parts.length - 1] === "") parts[parts.length - 1] = "0";
+
+    // Handle :: notation (compressed zeros)
+    const hasCompression = ip.includes("::");
+    if (hasCompression) {
+      // Find the position of ::
+      const compressionIndex = parts.indexOf("");
+
+      // Count how many zeros we need to expand to
+      const compressionLength = 8 - (parts.length - 1);
+      if (compressionLength < 1) {
+        throw new Error(`Invalid IPv6 address: ${ip} (invalid compression)`);
       }
+
+      // Create the expanded zeros
+      const zeros = Array(compressionLength).fill("0");
+
+      // Rebuild the parts array with the expanded zeros
+      const newParts = [
+        ...parts.slice(0, compressionIndex),
+        ...zeros,
+        ...parts.slice(compressionIndex + 1),
+      ];
+
+      // Join back to a normalized form
+      return newParts.map((p) => p || "0").join(":");
     }
 
-    // Handle :: abbreviation
-    if (ip.includes("::")) {
-      const parts = ip.split("::");
-      const left = parts[0] ? parts[0].split(":") : [];
-      const right = parts[1] ? parts[1].split(":") : [];
-      const missing = 8 - left.length - right.length;
-      const middle = Array(missing).fill("0");
-
-      const expanded = [...left, ...middle, ...right]
-        .map((part) => part.padStart(4, "0"))
-        .join(":");
-
-      return expanded;
-    }
-
-    // Handle normal case - just make sure all parts are 4 digits
-    return ip
-      .split(":")
-      .map((part) => part.padStart(4, "0"))
-      .join(":");
+    // If no compression, just make sure all parts are filled
+    return parts.map((p) => p || "0").join(":");
   }
 
   /**
    * Convert IPv6 address to its equivalent BigInt representation
    * for range comparison and storage
    */
-  static ipv6ToBigInt(ip: string): bigint {
-    const normalized = this.normalizeIpv6(ip);
-    const hex = normalized.replace(/:/g, "");
-    return BigInt(`0x${hex}`);
+  public static ipv6ToBigInt(ip: string): bigint {
+    try {
+      // Normalize the IP first
+      const normalizedIp = this.normalizeIpv6(ip);
+
+      // Split into 8 groups
+      const parts = normalizedIp.split(":");
+
+      if (parts.length !== 8) {
+        throw new Error(
+          `Invalid IPv6 address: ${ip} (should have 8 parts after normalization)`
+        );
+      }
+
+      // Convert each group to a number and build the BigInt
+      let result = BigInt(0);
+
+      for (let i = 0; i < 8; i++) {
+        const part = parts[i] || "0";
+        const value = part === "" ? 0 : parseInt(part, 16);
+
+        if (isNaN(value) || value < 0 || value > 65535) {
+          throw new Error(`Invalid IPv6 group: ${part} in address ${ip}`);
+        }
+
+        result = (result << BigInt(16)) | BigInt(value);
+      }
+
+      return result;
+    } catch (error) {
+      throw new Error(
+        `Failed to convert IPv6 to BigInt (${ip}): ${error.message}`
+      );
+    }
   }
 
   /**
-   * Convert BigInt back to IPv6 string format
+   * Convert a BigInt to an IPv6 address string
    */
-  static bigIntToIpv6(value: bigint): string {
-    // Convert to hex, ensure it's 32 characters (16 bytes)
-    const hex = value.toString(16).padStart(32, "0");
-
-    // Split into 8 parts of 4 characters each
-    const parts: string[] = [];
-    for (let i = 0; i < 32; i += 4) {
-      parts.push(hex.slice(i, i + 4));
+  public static bigIntToIpv6(bigint: bigint): string {
+    if (
+      bigint < BigInt(0) ||
+      bigint > BigInt("340282366920938463463374607431768211455")
+    ) {
+      // 2^128 - 1
+      throw new Error(`BigInt value out of range for IPv6: ${bigint}`);
     }
 
-    return parts.join(":");
+    const groups = [];
+    let tempValue = bigint;
+
+    // Extract 8 groups of 16 bits each, from most significant to least significant
+    for (let i = 0; i < 8; i++) {
+      // Shift right to get the most significant 16 bits
+      const group = (tempValue >> BigInt(112)) & BigInt(0xffff);
+      groups.push(group.toString(16));
+      // Shift left to process the next 16 bits
+      tempValue = tempValue << BigInt(16);
+    }
+
+    // Return the formatted IPv6 address
+    return groups.join(":");
   }
 
   /**

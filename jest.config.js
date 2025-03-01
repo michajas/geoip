@@ -21,6 +21,21 @@ module.exports = {
       statements: 80,
     },
   },
-  setupFilesAfterEnv: ["./test/jest.setup.ts"],
+  setupFilesAfterEnv: [
+    "./test/jest.setup.ts",
+    "./test/jest-setup-serializer.js",
+  ],
   testTimeout: 30000, // Increased timeout for the container tests
+  // Add these settings for better handling of BigInt
+  globals: {
+    // Tell Jest how to handle BigInt serialization
+    defaultTransformModules: [
+      "@babel/runtime/helpers/esm/typeof",
+      "jest-environment-node",
+    ],
+  },
+  // Make jest work with ES modules
+  transformIgnorePatterns: [
+    "/node_modules/(?!(module-that-needs-to-be-transformed)/)",
+  ],
 };

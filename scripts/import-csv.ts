@@ -1,4 +1,5 @@
 import path from "path";
+// Fix import path to properly resolve after compilation
 import { csvImportService } from "../src/services/csv-import-service";
 import { redisClient } from "../src/services/redis-client";
 

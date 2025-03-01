@@ -58,7 +58,7 @@ geoRoutes.get("/debug", async (req: Request, res: Response) => {
     // Updated scan operation for Redis client v4
     const scanResult = await client.scan(0, {
       MATCH: "geoip:*",
-      COUNT: 10,
+      COUNT: 100,
     });
 
     const keys = scanResult.keys;

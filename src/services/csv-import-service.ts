@@ -254,6 +254,7 @@ export class CsvImportService {
    */
   private async processIpv6File(filePath: string): Promise<number> {
     let count = 0;
+    let errorCount = 0;
 
     return new Promise((resolve, reject) => {
       fs.createReadStream(filePath)
@@ -267,53 +268,153 @@ export class CsvImportService {
             const location = this.locationMap.get(row.geoname_id);
             if (!location) return; // Skip if no location data
 
-            // Parse CIDR notation
-            const [ip, prefixStr] = network.split("/");
-            const prefix = parseInt(prefixStr, 10);
+            // Skip processing if we detect known problematic patterns
+            if (network.includes("e680::") || network.includes("::::")) {
+              console.warn(`Skipping problematic IPv6 network: ${network}`);
+              return;
+            }
 
+            // Parse CIDR notation and handle potential errors
             try {
-              // Calculate IPv6 range as BigInt
-              const normalizedIp = IpUtil.normalizeIpv6(ip);
-              const ipBigInt = IpUtil.ipv6ToBigInt(normalizedIp);
+              // Split network into IP and prefix parts safely
+              const parts = network.split("/");
+              if (parts.length !== 2) {
+                console.warn(`Invalid IPv6 CIDR format: ${network}`);
+                return;
+              }
 
-              // Create masks using BigInt
-              const maxBits = BigInt(128);
-              const prefixBigInt = BigInt(prefix);
-              const mask = (BigInt(1) << (maxBits - prefixBigInt)) - BigInt(1);
-              const startIp = ipBigInt & ~mask;
-              const endIp = ipBigInt | mask;
+              const ip = parts[0];
+              const prefixStr = parts[1];
+              const prefix = parseInt(prefixStr, 10);
 
-              // Store in Redis
-              const key = `geoip:v6:range:${startIp}:${endIp}`;
+              if (isNaN(prefix) || prefix < 0 || prefix > 128) {
+                console.warn(`Invalid IPv6 prefix: ${prefixStr} in ${network}`);
+                return;
+              }
 
-              await redisClient.hSet(key, "countryCode", location.countryCode);
-              await redisClient.hSet(key, "country", location.country);
-              await redisClient.hSet(key, "state", location.state);
-              await redisClient.hSet(key, "city", location.city);
-              await redisClient.hSet(
-                key,
-                "startIp",
-                IpUtil.bigIntToIpv6(startIp)
-              );
-              await redisClient.hSet(key, "endIp", IpUtil.bigIntToIpv6(endIp));
-              await redisClient.hSet(key, "latitude", row.latitude || "");
-              await redisClient.hSet(key, "longitude", row.longitude || "");
+              // Normalize and validate IP format
+              let normalizedIp;
+              try {
+                normalizedIp = IpUtil.normalizeIpv6(ip);
+              } catch (err) {
+                console.warn(
+                  `Failed to normalize IPv6 address ${ip}: ${err.message}`
+                );
+                return;
+              }
 
-              // Create index for lookups
-              await redisClient.set(`geoip:v6:idx:${startIp.toString()}`, key);
+              // Calculate range with better error handling
+              try {
+                // Convert to BigInt with validation
+                const ipBigInt = IpUtil.ipv6ToBigInt(normalizedIp);
 
-              count++;
+                // Create masks using BigInt with bounds checking
+                const maxBits = BigInt(128);
+                const prefixBigInt = BigInt(prefix);
+
+                // Avoid potential overflow by checking bounds
+                if (prefixBigInt < 0 || prefixBigInt > 128) {
+                  console.warn(
+                    `Invalid IPv6 prefix (out of bounds): ${prefix}`
+                  );
+                  return;
+                }
+
+                // Calculate masks safely
+                let mask;
+                if (prefixBigInt === maxBits) {
+                  mask = BigInt(0); // Special case for /128 networks
+                } else {
+                  const shiftAmount = maxBits - prefixBigInt;
+                  if (shiftAmount > 100) {
+                    // For very large shifts, be extra careful
+                    mask = BigInt(2) ** shiftAmount - BigInt(1);
+                  } else {
+                    mask = (BigInt(1) << shiftAmount) - BigInt(1);
+                  }
+                }
+
+                // Calculate range start and end
+                const startIp = ipBigInt & ~mask;
+                const endIp = ipBigInt | mask;
+
+                // Convert back to string representation for verification
+                const startIpStr = IpUtil.bigIntToIpv6(startIp);
+                const endIpStr = IpUtil.bigIntToIpv6(endIp);
+
+                // Verify the calculations are reasonable
+                if (!startIpStr || !endIpStr) {
+                  console.warn(
+                    `Failed to convert BigInt to IPv6 string for ${network}`
+                  );
+                  return;
+                }
+
+                // Create Redis key with namespace for the range
+                const key = `geoip:v6:range:${startIp}:${endIp}`;
+
+                // Store limited data in Redis to avoid large values
+                const locationData = {
+                  countryCode: location.countryCode || "",
+                  country: location.country || "",
+                  state: location.state || "",
+                  city: location.city || "",
+                  startIp: startIpStr,
+                  endIp: endIpStr,
+                };
+
+                // Use pipeline for better performance and atomic operations
+                const pipeline = redisClient.client.multi();
+
+                // Add each field one by one to avoid issues with complex objects
+                pipeline.hSet(key, "countryCode", locationData.countryCode);
+                pipeline.hSet(key, "country", locationData.country);
+                pipeline.hSet(key, "state", locationData.state);
+                pipeline.hSet(key, "city", locationData.city);
+                pipeline.hSet(key, "startIp", locationData.startIp);
+                pipeline.hSet(key, "endIp", locationData.endIp);
+
+                // Optional: Add latitude/longitude if available
+                if (row.latitude) pipeline.hSet(key, "latitude", row.latitude);
+                if (row.longitude)
+                  pipeline.hSet(key, "longitude", row.longitude);
+
+                // Create index for fast lookups (using a more compact index key)
+                pipeline.set(`geoip:v6:idx:${startIp.toString()}`, key);
+
+                // Execute the pipeline
+                await pipeline.exec();
+
+                count++;
+              } catch (err) {
+                errorCount++;
+                console.error(
+                  `Error processing IPv6 range for ${network}:`,
+                  err
+                );
+              }
             } catch (err) {
-              console.error(`Error processing IPv6 address ${ip}:`, err);
+              errorCount++;
+              console.error(`Error parsing IPv6 CIDR ${network}:`, err);
             }
           } catch (err) {
-            console.error(`Error processing IPv6 row:`, err);
+            errorCount++;
+            if (errorCount < 10) {
+              // Only log the first few errors to avoid flooding
+              console.error(`Error processing IPv6 row:`, err);
+            } else if (errorCount === 10) {
+              console.error(`Suppressing further IPv6 processing errors...`);
+            }
           }
         })
         .on("end", () => {
+          console.log(
+            `Processed IPv6 file: ${count} successful, ${errorCount} errors`
+          );
           resolve(count);
         })
         .on("error", (err) => {
+          console.error(`Error reading IPv6 file:`, err);
           reject(err);
         });
     });
