@@ -1,30 +1,19 @@
 import express from "express";
-import { geoRoutes } from "./controllers/geo-controller";
+// Import routes
+import { geoRoutes } from "./routes/geo-routes";
 
-export const app = express();
+// Create Express application
+const app = express();
 
-// Middleware
+// Add middleware
 app.use(express.json());
 
-// Routes
+// Add routes
 app.use("/api/geo", geoRoutes);
 
-// Health check endpoint
+// Health check
 app.get("/health", (req, res) => {
-  res.status(200).json({ status: "UP" });
+  res.status(200).json({ status: "OK" });
 });
-
-// Error handling middleware
-app.use(
-  (
-    err: Error,
-    req: express.Request,
-    res: express.Response,
-    next: express.NextFunction
-  ) => {
-    console.error(err.stack);
-    res.status(500).json({ error: "Internal Server Error" });
-  }
-);
 
 export default app;

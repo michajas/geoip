@@ -14,10 +14,14 @@
     "lint": "eslint src --ext .ts",
     "extract-test-ips": "node load-tests/extract-ips.js",
     "load-test": "k6 run load-tests/geoip-load-test.js",
-    "import-csv": "node dist/scripts/import-csv.js",
+    "import-csv": "yarn build:all && node dist/scripts/import-csv.js",
     "import-data": "node scripts/direct-import.js",
     "import-full": "node scripts/direct-import.js --clear",
-    "update-geoip": "node scripts/direct-import.js -l GeoIP2-City-Locations-en.csv -4 GeoIP2-City-Blocks-IPv4.csv -6 GeoIP2-City-Blocks-IPv6.csv"
+    "update-geoip": "node scripts/direct-import.js -l GeoIP2-City-Locations-en.csv -4 GeoIP2-City-Blocks-IPv4.csv -6 GeoIP2-City-Blocks-IPv6.csv",
+    "clear-redis": "node src/scripts/clear-redis.ts",
+    "check-redis": "node scripts/check-redis-data.js",
+    "test-ip": "node scripts/test-ip-lookup.js",
+    "check-deps": "node scripts/check-circular-deps.js"
   },
   "dependencies": {
     "express": "^4.18.2",
