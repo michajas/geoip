@@ -1,5 +1,5 @@
 # Build stage
-FROM node:18-slim AS builder
+FROM node:22-slim AS builder
 
 WORKDIR /app
 
@@ -17,7 +17,7 @@ RUN yarn build
 RUN yarn install --frozen-lockfile --production
 
 # Final image
-FROM node:18-slim
+FROM node:22-slim
 
 WORKDIR /app
 

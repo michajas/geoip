@@ -78,7 +78,7 @@ export default function () {
   }
 
   // Add some randomness to requests
-  sleep(Math.random() * 1 + 0.5); // Sleep between 0.5-1.5 seconds
+  sleep(0.01 + Math.random() * 0.04); // Sleep between 10ms-50ms
 }
 
 // Summary output when the test completes
