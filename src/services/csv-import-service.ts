@@ -29,6 +29,7 @@ export interface ImportOptions {
   ipv6File?: string;
   dataDir?: string;
   clearExisting?: boolean;
+  skipProblemIpv6?: boolean; // New option to skip problematic IPv6 ranges
 }
 
 export class CsvImportService {
@@ -390,6 +391,15 @@ export class CsvImportService {
     let noNetworkCount = 0;
     let skippedNetworks = 0;
 
+    // Arrays of problematic IPv6 prefixes that often cause issues
+    const problemPrefixes = [
+      "2a02:ffc0",
+      "2a02:e680",
+      "2a05:",
+      "2a06:",
+      "2a07:",
+    ];
+
     return new Promise((resolve, reject) => {
       fs.createReadStream(filePath)
         .pipe(
@@ -433,9 +443,18 @@ export class CsvImportService {
             }
 
             // Skip processing if we detect known problematic patterns
-            if (network.includes("e680::") || network.includes("::::")) {
-              console.warn(`Skipping problematic IPv6 network: ${network}`);
+            const isProblematic = problemPrefixes.some((prefix) =>
+              network.startsWith(prefix)
+            );
+            if (network.includes("::::") || isProblematic) {
               skippedNetworks++;
+              if (skippedNetworks <= 10) {
+                console.warn(`Skipping problematic IPv6 network: ${network}`);
+              } else if (skippedNetworks === 11) {
+                console.warn(
+                  'Suppressing further "skipped network" messages...'
+                );
+              }
               return;
             }
 

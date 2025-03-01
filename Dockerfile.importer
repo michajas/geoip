@@ -1,0 +1,52 @@
+FROM node:22-slim
+
+WORKDIR /app
+
+# Copy package files
+COPY package.json yarn.lock ./
+
+# Install all dependencies (including dev dependencies needed for building)
+RUN yarn install
+
+# Copy all source files
+COPY tsconfig.json ./
+COPY src/ ./src/
+COPY scripts/ ./scripts/
+
+# Build the application
+RUN yarn build:all
+
+# Create data directory for import files
+RUN mkdir -p /data
+
+# Set environment variables
+ENV NODE_ENV=production
+ENV REDIS_HOST=redis
+ENV REDIS_PORT=6379
+
+# Create the entrypoint script
+RUN echo '#!/bin/bash\n\
+\n\
+# Default values\n\
+LOCATIONS_FILE=${LOCATIONS_FILE:-"/data/GeoIP2-City-Locations-en.csv"}\n\
+IPV4_FILE=${IPV4_FILE:-"/data/GeoIP2-City-Blocks-IPv4.csv"}\n\
+IPV6_FILE=${IPV6_FILE:-"/data/GeoIP2-City-Blocks-IPv6.csv"}\n\
+CLEAR_EXISTING=${CLEAR_EXISTING:-"false"}\n\
+\n\
+# Build the command\n\
+CMD="node ./scripts/direct-import.js"\n\
+\n\
+# Add file parameters\n\
+CMD="$CMD -l $LOCATIONS_FILE -4 $IPV4_FILE -6 $IPV6_FILE"\n\
+\n\
+# Add clear flag if needed\n\
+if [ "$CLEAR_EXISTING" = "true" ]; then\n\
+  CMD="$CMD --clear"\n\
+fi\n\
+\n\
+echo "Running: $CMD"\n\
+exec $CMD\n\
+' > /app/entrypoint.sh && chmod +x /app/entrypoint.sh
+
+# Set the entrypoint to our script
+ENTRYPOINT ["/app/entrypoint.sh"]

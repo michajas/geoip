@@ -21,7 +21,8 @@
     "clear-redis": "node src/scripts/clear-redis.ts",
     "check-redis": "node scripts/check-redis-data.js",
     "test-ip": "node scripts/test-ip-lookup.js",
-    "check-deps": "node scripts/check-circular-deps.js"
+    "check-deps": "node scripts/check-circular-deps.js",
+    "import-direct": "node -r ./scripts/register-ts-paths.js ./src/scripts/import-csv-direct.ts"
   },
   "dependencies": {
     "express": "^4.18.2",
@@ -45,7 +46,8 @@
     "supertest": "^6.3.3",
     "swc-node": "^1.0.0",
     "testcontainers": "^9.12.0",
-    "typescript": "^5.1.6"
+    "typescript": "^5.1.6",
+    "ts-node": "^10.9.1"
   },
   "license": "MIT"
 }

@@ -1,0 +1,32 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: geoip-data-import
+  namespace: default
+spec:
+  schedule: "0 0 * * *" # Daily at midnight
+  concurrencyPolicy: Forbid
+  failedJobsHistoryLimit: 2
+  successfulJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: geoip-importer
+            image: your-registry/geoip-importer:latest
+            env:
+            - name: REDIS_HOST
+              value: "redis-service"
+            - name: REDIS_PORT
+              value: "6379"
+            - name: CLEAR_EXISTING
+              value: "false"            
+            volumeMounts:
+            - name: geoip-data
+              mountPath: /data
+          restartPolicy: OnFailure
+          volumes:
+          - name: geoip-data
+            persistentVolumeClaim:
+              claimName: geoip-data-pvc
