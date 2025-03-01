@@ -21,9 +21,7 @@
     "clear-redis": "node src/scripts/clear-redis.ts",
     "check-redis": "node scripts/check-redis-data.js",
     "test-ip": "node scripts/test-ip-lookup.js",
-    "check-deps": "node scripts/check-circular-deps.js",
     "import-direct": "node -r ./scripts/register-ts-paths.js ./src/scripts/import-csv-direct.ts",
-    "install-test-deps": "sh ./scripts/install-test-deps.sh",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage"
   },
