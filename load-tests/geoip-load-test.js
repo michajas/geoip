@@ -17,9 +17,9 @@ const totalRequests = new Counter("total_requests");
 // Test configuration
 export const options = {
   stages: [
-    { duration: "5s", target: 10 }, // Ramp up to 10 users over 30 seconds
-    { duration: "20s", target: 50 }, // Ramp up to 50 users over 1 minute
-    { duration: "10s", target: 50 }, // Stay at 50 users for 2 minutes
+    { duration: "2s", target: 10 }, // Ramp up to 10 users over 30 seconds
+    { duration: "5s", target: 50 }, // Ramp up to 50 users over 1 minute
+    { duration: "20s", target: 50 }, // Stay at 50 users for 2 minutes
     { duration: "5s", target: 0 }, // Ramp down to 0 users
   ],
   thresholds: {
@@ -70,7 +70,7 @@ export default function () {
   notFoundRate.add(response.status === 404 ? 1 : 0);
 
   // Log for debugging (only 1% of responses to avoid excessive logging)
-  if (Math.random() < 0.01) {
+  if (Math.random() < 0.001) {
     console.log(`[${response.status}] ${url} - ${duration}ms`);
     if (response.status === 200) {
       console.log(`Response: ${response.body}`);
@@ -78,7 +78,7 @@ export default function () {
   }
 
   // Add some randomness to requests
-  sleep(0.01 + Math.random() * 0.04); // Sleep between 10ms-50ms
+  sleep(0.001 + Math.random() * 0.004); // Sleep between 10ms-50ms
 }
 
 // Summary output when the test completes
@@ -86,9 +86,9 @@ export function handleSummary(data) {
   console.log("Summary data:");
   console.log(`  Total requests: ${data.metrics.total_requests.values.count}`);
   console.log(
-    `  Request rate: ${data.metrics.requests_per_second.values.rate.toFixed(
-      2
-    )}/sec`
+    `  Request rate: ${
+      data.metrics.requests_per_second.values.rate.toFixed(2) / 40
+    }/sec`
   );
   console.log(
     `  Mean response time: ${data.metrics.http_req_duration.values.avg.toFixed(

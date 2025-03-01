@@ -3,26 +3,26 @@
 GeoIP Service Load Test Summary
 =================================
 
-Test duration: 0h 0m 40s
+Test duration: 0h 0m 32s
 Virtual users: 50
 
 Request Metrics:
-  Total requests: 39539
+  Total requests: 193314
   Requests/sec: 1.00/sec
   
 Response Time:
-  Min: 0.55ms
-  Mean: 1.18ms
+  Min: 0.43ms
+  Mean: 3.30ms
   Median: N/Ams
-  p90: 1.69ms
-  p95: 1.99ms
+  p90: 5.33ms
+  p95: 6.23ms
   p99: N/Ams
-  Max: 17.98ms
+  Max: 37.22ms
 
 Status Codes:
-  200 OK: 987.7438719859559/sec
-  Success rate: 94.51%
-  Not found rate: 5.49%
+  200 OK: 6040.257635670047/sec
+  Success rate: 94.31%
+  Not found rate: 5.69%
 
 =================================
   
