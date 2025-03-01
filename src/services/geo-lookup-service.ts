@@ -15,8 +15,6 @@ export interface GeoIpLookupResult {
 export class GeoLookupService {
   /**
    * Look up geolocation data for an IP address
-   * @param ip The IP address to look up
-   * @returns The geolocation data or null if not found
    */
   public async lookup(ip: string): Promise<GeoIpLookupResult | null> {
     // Validate the IP and determine its version
@@ -44,33 +42,25 @@ export class GeoLookupService {
    * Convert between signed and unsigned 32-bit integers
    */
   private toSigned32(n: number): number {
-    // Convert unsigned to signed if necessary
     return n > 0x7fffffff ? n - 0x100000000 : n;
   }
 
   private toUnsigned32(n: number): number {
-    // Convert signed to unsigned if necessary
     return n < 0 ? n + 0x100000000 : n;
   }
 
   /**
-   * Look up geolocation data for an IPv4 address using binary search
+   * Look up geolocation data for an IPv4 address
    */
   private async lookupIpv4(ip: string): Promise<GeoIpLookupResult | null> {
-    console.log(`Looking up IPv4 address: ${ip}`);
     const ipLong = IpUtil.ipToLong(ip);
     const ipLongSigned = this.toSigned32(ipLong);
 
-    console.log(`IP as unsigned: ${ipLong}, as signed: ${ipLongSigned}`);
-
-    // First attempt: Try to find an exact index match (for /32 networks)
+    // Try direct index lookup first
     const exactIndexKey = `geoip:v4:idx:${ipLongSigned}`;
     const exactRangeKey = await redisClient.client.get(exactIndexKey);
 
     if (exactRangeKey) {
-      console.log(
-        `Found exact match index key: ${exactIndexKey} -> ${exactRangeKey}`
-      );
       const data = await redisClient.client.hGetAll(exactRangeKey);
       if (Object.keys(data).length > 0) {
         return {
@@ -86,8 +76,7 @@ export class GeoLookupService {
       }
     }
 
-    // Second attempt: Scan for a range that contains this IP
-    console.log(`No exact match found for ${ip}, scanning ranges...`);
+    // Scan for a range that contains this IP
     let cursor = 0;
 
     do {
@@ -110,16 +99,8 @@ export class GeoLookupService {
         const startIpUnsigned = this.toUnsigned32(startIpSigned);
         const endIpUnsigned = this.toUnsigned32(endIpSigned);
 
-        // Check if the IP falls within this range (using unsigned for comparison)
+        // Check if the IP falls within this range
         if (ipLong >= startIpUnsigned && ipLong <= endIpUnsigned) {
-          console.log(`Found matching range: ${key} for ${ip} (${ipLong})`);
-          console.log(
-            `Range bounds: ${startIpSigned} to ${endIpSigned} (signed)`
-          );
-          console.log(
-            `Range bounds: ${startIpUnsigned} to ${endIpUnsigned} (unsigned)`
-          );
-
           const data = await redisClient.client.hGetAll(key);
           if (Object.keys(data).length > 0) {
             return {
@@ -137,7 +118,6 @@ export class GeoLookupService {
       }
     } while (cursor !== 0);
 
-    console.log(`No matching range found for ${ip} (${ipLong})`);
     return null;
   }
 
@@ -145,9 +125,73 @@ export class GeoLookupService {
    * Look up geolocation data for an IPv6 address
    */
   private async lookupIpv6(ip: string): Promise<GeoIpLookupResult | null> {
-    // Implement IPv6 lookup using the same pattern as IPv4
-    // ...existing IPv6 lookup code...
-    return null; // Placeholder until fully implemented
+    try {
+      // Normalize the IP
+      const normalizedIp = IpUtil.normalizeIpv6(ip);
+
+      // Convert to BigInt for comparison
+      const ipBigInt = IpUtil.ipv6ToBigInt(normalizedIp);
+
+      // Try exact index match first
+      const exactIndexKey = `geoip:v6:idx:${ipBigInt.toString()}`;
+      const exactRangeKey = await redisClient.client.get(exactIndexKey);
+
+      if (exactRangeKey) {
+        const data = await redisClient.client.hGetAll(exactRangeKey);
+        if (Object.keys(data).length > 0) {
+          return {
+            ip,
+            ipVersion: 6,
+            countryCode: data.countryCode,
+            country: data.country,
+            state: data.state,
+            city: data.city,
+            latitude: data.latitude,
+            longitude: data.longitude,
+          };
+        }
+      }
+
+      // Scan for ranges
+      let cursor = 0;
+
+      do {
+        const result = await redisClient.client.scan(cursor, {
+          MATCH: "geoip:v6:range:*",
+          COUNT: 1000,
+        });
+
+        cursor = result.cursor;
+
+        for (const key of result.keys) {
+          const parts = key.split(":");
+          if (parts.length < 5) continue;
+
+          const startIpBigInt = BigInt(parts[3]);
+          const endIpBigInt = BigInt(parts[4]);
+
+          if (ipBigInt >= startIpBigInt && ipBigInt <= endIpBigInt) {
+            const data = await redisClient.client.hGetAll(key);
+            if (Object.keys(data).length > 0) {
+              return {
+                ip,
+                ipVersion: 6,
+                countryCode: data.countryCode,
+                country: data.country,
+                state: data.state,
+                city: data.city,
+                latitude: data.latitude,
+                longitude: data.longitude,
+              };
+            }
+          }
+        }
+      } while (cursor !== 0);
+    } catch (error) {
+      // Ignore errors in IPv6 lookup
+    }
+
+    return null;
   }
 }
 

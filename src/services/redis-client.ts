@@ -6,20 +6,16 @@ dotenv.config();
 
 /**
  * Redis client wrapper for the application.
- * Provides connection management and convenience methods for Redis operations.
  */
 export class RedisClient {
+  // Class property for singleton instance
+  private static instance: RedisClient | null = null;
+
   public client: ReturnType<typeof createClient>;
   private connected: boolean = false;
   private connecting: boolean = false;
 
   constructor() {
-    console.log(
-      `Creating Redis client for ${process.env.REDIS_HOST || "localhost"}:${
-        process.env.REDIS_PORT || 6379
-      }`
-    );
-
     this.client = createClient({
       url: `redis://${process.env.REDIS_HOST || "localhost"}:${
         process.env.REDIS_PORT || 6379
@@ -27,22 +23,15 @@ export class RedisClient {
       socket: {
         reconnectStrategy: (retries) => {
           if (retries > 10) {
-            console.error(
-              `Redis: Max reconnection attempts reached. Giving up.`
-            );
             return new Error("Max reconnection attempts reached");
           }
-          // Exponential backoff with max of 3 seconds
-          const delay = Math.min(Math.pow(2, retries) * 100, 3000);
-          console.log(`Redis: Reconnecting in ${delay}ms...`);
-          return delay;
+          return Math.min(Math.pow(2, retries) * 100, 3000);
         },
       },
     });
 
     // Set up event handlers
     this.client.on("connect", () => {
-      console.log("Redis connection established");
       this.connected = true;
     });
 
@@ -52,9 +41,38 @@ export class RedisClient {
     });
 
     this.client.on("end", () => {
-      console.log("Redis connection closed");
       this.connected = false;
     });
+  }
+
+  /**
+   * Reset the singleton instance (for testing)
+   */
+  public static async resetInstance(): Promise<void> {
+    if (RedisClient.instance) {
+      // Disconnect the existing client if connected
+      if (RedisClient.instance.isConnected()) {
+        try {
+          await RedisClient.instance.disconnect();
+        } catch (e) {
+          console.error("Error disconnecting Redis during reset:", e);
+        }
+      }
+      // Clear the instance
+      RedisClient.instance = null;
+    }
+    // Create a new instance
+    RedisClient.instance = new RedisClient();
+  }
+
+  /**
+   * Get or create the singleton instance
+   */
+  public static getInstance(): RedisClient {
+    if (!RedisClient.instance) {
+      RedisClient.instance = new RedisClient();
+    }
+    return RedisClient.instance;
   }
 
   /**
@@ -65,8 +83,7 @@ export class RedisClient {
   }
 
   /**
-   * Ensure Redis connection is established.
-   * If already connected, does nothing.
+   * Ensure Redis connection is established
    */
   public async ensureConnection(): Promise<void> {
     if (this.connected) {
@@ -74,7 +91,6 @@ export class RedisClient {
     }
 
     if (this.connecting) {
-      // Wait for connection to complete
       while (this.connecting) {
         await new Promise((resolve) => setTimeout(resolve, 100));
       }
@@ -85,7 +101,6 @@ export class RedisClient {
       this.connecting = true;
       await this.client.connect();
       this.connected = true;
-      console.log("Redis connection established");
     } catch (error) {
       console.error("Failed to connect to Redis:", error);
       throw error;
@@ -95,32 +110,25 @@ export class RedisClient {
   }
 
   /**
-   * Disconnect from Redis.
-   * Safe to call multiple times.
+   * Disconnect from Redis
    */
   public async disconnect(): Promise<void> {
     if (this.connected) {
       try {
         await this.client.quit();
         this.connected = false;
-        console.log("Redis connection closed gracefully");
       } catch (error) {
-        console.error("Error disconnecting from Redis:", error);
-        // Force disconnect if quit fails
         try {
           await this.client.disconnect();
         } catch (err) {
-          // Already disconnected or other error, just log
-          console.error("Error during force disconnect:", err);
+          // Already disconnected
         }
         this.connected = false;
       }
     }
   }
 
-  /**
-   * Helper method to set a hash field
-   */
+  // Helper methods
   public async hSet(
     key: string,
     field: string,
@@ -130,30 +138,21 @@ export class RedisClient {
     return this.client.hSet(key, field, value.toString());
   }
 
-  /**
-   * Helper method to get all hash fields
-   */
   public async hGetAll(key: string): Promise<Record<string, string>> {
     await this.ensureConnection();
     return this.client.hGetAll(key);
   }
 
-  /**
-   * Helper method to set a key
-   */
   public async set(key: string, value: string): Promise<string> {
     await this.ensureConnection();
     return this.client.set(key, value);
   }
 
-  /**
-   * Helper method to get a key
-   */
   public async get(key: string): Promise<string | null> {
     await this.ensureConnection();
     return this.client.get(key);
   }
 }
 
-// Export a singleton instance
-export const redisClient = new RedisClient();
+// Export singleton instance using getInstance pattern
+export const redisClient = RedisClient.getInstance();

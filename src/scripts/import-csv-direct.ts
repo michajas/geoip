@@ -52,16 +52,10 @@ function parseArgs(): { [key: string]: string | boolean } {
 // Main import function
 async function runImport() {
   try {
-    console.log("Starting CSV import process...");
-
     // Parse arguments
     const args = parseArgs();
-    console.log("Import options:", args);
 
-    // Create CSV import service
-    const csvImportService = new CsvImportService();
-
-    // Add signal handling for graceful shutdown
+    // Register shutdown handlers
     let shuttingDown = false;
     process.on("SIGINT", handleShutdown);
     process.on("SIGTERM", handleShutdown);
@@ -69,54 +63,45 @@ async function runImport() {
     async function handleShutdown() {
       if (shuttingDown) return;
       shuttingDown = true;
-      console.log("Caught termination signal. Shutting down gracefully...");
+
       try {
-        // Only disconnect if connected
         if (redisClient.isConnected()) {
           await redisClient.disconnect();
-          console.log("Redis connection closed");
         }
       } catch (e) {
-        console.error("Error during graceful shutdown:", e);
+        // Ignore errors during shutdown
       }
       process.exit(0);
     }
 
     // Run the import
-    await csvImportService.importData({
+    await new CsvImportService().importData({
       locationsFile: args.locationsFile as string | undefined,
       ipv4File: args.ipv4File as string | undefined,
       ipv6File: args.ipv6File as string | undefined,
       dataDir: args.dataDir as string | undefined,
       clearExisting: args.clearExisting as boolean,
-      // Add option to skip problematic IPv6 ranges
       skipProblemIpv6: true,
     });
 
-    console.log("Import completed successfully");
-
-    // Close Redis connection only if not already shutting down
+    // Cleanup and exit
     if (!shuttingDown && redisClient.isConnected()) {
       await redisClient.disconnect();
-      console.log("Redis connection closed");
     }
     process.exit(0);
   } catch (error) {
     console.error("Error during import:", error);
+
     try {
       if (redisClient.isConnected()) {
         await redisClient.disconnect();
-        console.log("Redis connection closed after error");
       }
     } catch (e) {
-      console.error("Error disconnecting from Redis:", e);
+      // Ignore errors during error cleanup
     }
     process.exit(1);
   }
 }
 
 // Run the import
-runImport().catch((error) => {
-  console.error("Unhandled error in import:", error);
-  process.exit(1);
-});
+runImport().catch(() => process.exit(1));

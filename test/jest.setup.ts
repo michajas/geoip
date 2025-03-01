@@ -1,6 +1,6 @@
 import { RedisClient } from "../src/services/redis-client";
 
-// Global teardown function to make sure Redis connections are closed
+// Reset Redis singleton after all tests
 afterAll(async () => {
   // Disconnect any Redis clients
   await RedisClient.resetInstance();
