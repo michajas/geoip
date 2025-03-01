@@ -1,5 +1,6 @@
 import { redisClient } from "./redis-client";
 import { IpUtil } from "./ip-util";
+import { Ipv6Util } from "./ipv6-util";
 
 export interface GeoIpLookupResult {
   ip: string;
@@ -128,11 +129,9 @@ export class GeoLookupService {
    */
   private async lookupIpv6(ip: string): Promise<GeoIpLookupResult | null> {
     try {
-      // Normalize the IP
-      const normalizedIp = IpUtil.normalizeIpv6(ip);
-
-      // Convert to BigInt for comparison
-      const ipBigInt = IpUtil.ipv6ToBigInt(normalizedIp);
+      // Use the dedicated Ipv6Util class directly
+      const normalizedIp = Ipv6Util.normalize(ip);
+      const ipBigInt = Ipv6Util.toBigInt(normalizedIp);
 
       // Try exact index match first
       const exactIndexKey = `geoip:v6:idx:${ipBigInt.toString()}`;
@@ -166,7 +165,8 @@ export class GeoLookupService {
           const startIpBigInt = BigInt(parts[3]);
           const endIpBigInt = BigInt(parts[4]);
 
-          if (ipBigInt >= startIpBigInt && ipBigInt <= endIpBigInt) {
+          // Use Ipv6Util to check range containment
+          if (Ipv6Util.isInRange(normalizedIp, startIpBigInt, endIpBigInt)) {
             const data = await redisClient.client.hGetAll(key);
             if (Object.keys(data).length > 0) {
               return this.createLookupResult(ip, 6, data);

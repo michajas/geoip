@@ -3,6 +3,7 @@ import path from "path";
 import csv from "csv-parser";
 import { redisClient } from "./redis-client";
 import { IpUtil } from "./ip-util";
+import { Ipv6Util } from "./ipv6-util";
 
 export interface GeoIpLocation {
   geonameId: string;
@@ -50,15 +51,6 @@ interface Ipv6Range {
 export class CsvImportService {
   private static readonly DEFAULT_DATA_DIR = path.join(process.cwd(), "data");
   private locationMap: Map<string, GeoIpLocation> = new Map();
-
-  // Known problematic IPv6 prefixes
-  private static readonly PROBLEMATIC_IPV6_PREFIXES = [
-    "2a02:ffc0",
-    "2a02:e680",
-    "2a05:",
-    "2a06:",
-    "2a07:",
-  ];
 
   /**
    * Import data from GeoIP2 CSV files into Redis
@@ -421,12 +413,8 @@ export class CsvImportService {
   private parseIpv6Network(network: string): ParsedIpv6Network | null {
     if (!network) return null;
 
-    // Skip known problematic networks
-    const isProblematic = CsvImportService.PROBLEMATIC_IPV6_PREFIXES.some(
-      (prefix) => network.startsWith(prefix)
-    );
-
-    if (network.includes("::::") || isProblematic) {
+    // Use the dedicated Ipv6Util class to check for problematic networks
+    if (Ipv6Util.isProblematic(network)) {
       return null;
     }
 
@@ -440,10 +428,10 @@ export class CsvImportService {
 
     if (isNaN(prefix) || prefix < 0 || prefix > 128) return null;
 
-    // Normalize and validate the IP
+    // Use Ipv6Util for normalization
     let normalizedIp;
     try {
-      normalizedIp = IpUtil.normalizeIpv6(ip);
+      normalizedIp = Ipv6Util.normalize(ip);
     } catch (err) {
       return null;
     }
@@ -456,33 +444,8 @@ export class CsvImportService {
    */
   private calculateIpv6Range(ip: string, prefix: number): Ipv6Range | null {
     try {
-      const ipBigInt = IpUtil.ipv6ToBigInt(ip);
-      const maxBits = BigInt(128);
-      const prefixBigInt = BigInt(prefix);
-
-      // Calculate mask
-      let mask;
-      if (prefixBigInt === maxBits) {
-        mask = BigInt(0);
-      } else {
-        const shiftAmount = maxBits - prefixBigInt;
-        if (shiftAmount > 100) {
-          // For very large shifts, be extra careful
-          mask = BigInt(2) ** shiftAmount - BigInt(1);
-        } else {
-          mask = (BigInt(1) << shiftAmount) - BigInt(1);
-        }
-      }
-
-      const startIp = ipBigInt & ~mask;
-      const endIp = ipBigInt | mask;
-
-      const startIpStr = IpUtil.bigIntToIpv6(startIp);
-      const endIpStr = IpUtil.bigIntToIpv6(endIp);
-
-      if (!startIpStr || !endIpStr) return null;
-
-      return { startIp, endIp, startIpStr, endIpStr };
+      // Use Ipv6Util for range calculation
+      return Ipv6Util.calculateRange(ip, prefix);
     } catch (err) {
       return null;
     }

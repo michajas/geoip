@@ -140,7 +140,25 @@ export class RedisClient {
     }
   }
 
-  // Helper methods
+  /**
+   * Set a key-value pair in Redis
+   */
+  public async set(key: string, value: string): Promise<string | null> {
+    await this.ensureConnection();
+    return this.client.set(key, value);
+  }
+
+  /**
+   * Get a value from Redis by key
+   */
+  public async get(key: string): Promise<string | null> {
+    await this.ensureConnection();
+    return this.client.get(key);
+  }
+
+  /**
+   * Set a hash field in Redis
+   */
   public async hSet(
     key: string,
     field: string,
@@ -150,19 +168,12 @@ export class RedisClient {
     return this.client.hSet(key, field, value.toString());
   }
 
+  /**
+   * Get all hash fields from Redis
+   */
   public async hGetAll(key: string): Promise<Record<string, string>> {
     await this.ensureConnection();
     return this.client.hGetAll(key);
-  }
-
-  public async set(key: string, value: string): Promise<string> {
-    await this.ensureConnection();
-    return this.client.set(key, value);
-  }
-
-  public async get(key: string): Promise<string | null> {
-    await this.ensureConnection();
-    return this.client.get(key);
   }
 }
 

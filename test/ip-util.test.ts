@@ -104,6 +104,17 @@ describe("IpUtil", () => {
         expect(IpUtil.isValidIpv6(range.end)).toBe(true);
       }
     });
+
+    test("should convert IPv6 to BigInt and back", () => {
+      const testIp = "2001:db8::1";
+      const bigint = IpUtil.ipv6ToBigInt(testIp);
+      expect(typeof bigint).toBe("bigint");
+
+      // Convert back
+      const ipBack = IpUtil.bigIntToIpv6(bigint);
+      // Compare normalized forms
+      expect(IpUtil.normalizeIpv6(ipBack)).toBe(IpUtil.normalizeIpv6(testIp));
+    });
   });
 
   describe("General IP Utilities", () => {
